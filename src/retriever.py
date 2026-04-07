@@ -29,7 +29,7 @@ def retrieve_top_k_chunks(
 
     Args:
         query: User query
-        model: FAISS index
+        model: SentenceTransformer model for embedding the query
         index: FAISS index
         chunks: Original text chunks
         k: Number of chunks to retrieve
