@@ -1,18 +1,18 @@
 import os
 import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
+import tempfile
+import streamlit as st
 from dotenv import load_dotenv
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 load_dotenv()
 print("DEBUG KEY EXISTS:", bool(os.getenv("OPENROUTER_API_KEY")))
 print("DEBUG KEY PREFIX:", os.getenv("OPENROUTER_API_KEY", "")[:12])
-import tempfile
-import streamlit as st
 
 from src.pdf_utils import extract_text_from_pdf
 from src.text_splitter import split_text_into_chunks
-from src.embeddings import load_embedding_model, embed_text_chunks
+from src.embeddings import load_embedding_model 
 from src.retriever import build_faiss_index, retrieve_top_k_chunks
 from src.llm_client import ask_openrouter
 
@@ -33,14 +33,14 @@ if uploaded_file is not None:
 
     try:
         with st.spinner("Extracting text from PDF..."):
-            pdf_text = extract_text_from_pdf(temp_pdf_path)
+            pages = extract_text_from_pdf(temp_pdf_path)
         
-        if not pdf_text.strip():
+        if not pages:
             st.error("no readable text found in the PDF.")
             st.stop()
         
         with st.spinner("Splitting text into chunks..."):
-            chunks = split_text_into_chunks(pdf_text, chunk_size=500, overlap=100)
+            chunks = split_text_into_chunks(pages)
         
         if not chunks:
             st.error("No chunks were created from the PDF text.")
@@ -48,7 +48,8 @@ if uploaded_file is not None:
         
         with st.spinner("Generating embeddings..."):
             model = get_model()
-            embeddings = embed_text_chunks(model, chunks)
+            texts = [c['text'] for c in chunks]
+            embeddings = model.encode(texts)
         
         with st.spinner("Building FAISS index..."):
             index = build_faiss_index(embeddings)
@@ -58,7 +59,7 @@ if uploaded_file is not None:
         query = st.text_input("Ask a question about the PDF")
 
         def generate_answer(query, retrieved_chunks):
-                context = "\n\n".join([chunk for chunk, _ in retrieved_chunks])
+                context = "\n\n".join([chunk['text'] for chunk, _ in retrieved_chunks])
 
                 answer = f"""
                 **Question**: {query}
@@ -72,21 +73,21 @@ if uploaded_file is not None:
                 results = retrieve_top_k_chunks(query, model, index, chunks, k=3)
             
             with st.spinner("Generating answer with OpenRouter..."):
-                answer = ask_openrouter(query, results, model="nvidia/nemotron-3-super-120b-a12b:free")
-            
-            # answer = generate_answer(query, results)
+                answer = ask_openrouter(
+                    query, 
+                    results, 
+                    model="nvidia/nemotron-3-super-120b-a12b:free"
+                    )
+        
             st.subheader("Answer")
             st.write(answer)
             
-            # # st.subheader("Top relevant chunks")
-            # for i, (chunk, score) in enumerate(results, start=1):
-            #     st.markdown(f"**Chunk {i}** \nDistance: `{score:.4f}`")
-            #     st.write(chunk)
-            #     st.markdown("---")
             with st.expander("Sources used"):
                 for i, (chunk, score) in enumerate(results, start=1):
-                    st.markdown(f"**Chunk {i}** - distance `{score:.4f}`")
-                    st.write(chunk)
+                    st.markdown(
+                        f"**Chunk {i}** - Page {chunk['page']} - distance `{score:.4f}`"
+                        )
+                    st.write(chunk['text'])
                     st.markdown("---")
     finally:
         if os.path.exists(temp_pdf_path):

@@ -43,5 +43,5 @@ def retrieve_top_k_chunks(
     results = []
     for idx, dist in zip(indices[0], distances[0]):
         if 0 <= idx < len(chunks):
-            results.append((chunks[idx], float(dist)))
+            results.append((chunks[idx], float(dist))) # chunks[idx] is dict
     return results

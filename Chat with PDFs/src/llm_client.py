@@ -19,7 +19,7 @@ def ask_openrouter(
             "OPENROUTER_API_KEY not found. Please export it before running the app."
         )
 
-    context = "\n\n".join(chunk for chunk, _ in retrieved_chunks)
+    context = "\n\n".join(chunk['text'] for chunk, _ in retrieved_chunks)
 
     prompt = f"""
 You are a helpful assistant for question answering over PDFs.
